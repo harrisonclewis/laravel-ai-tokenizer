@@ -1,7 +1,7 @@
 # Laravel AI Tokenizer
 
-[![Latest Version on Packagist](https://img.shields.io/packagist/v/harlew-dev/laravel-ai-tokenizer.svg?style=flat-square)](https://packagist.org/packages/harlew-dev/laravel-ai-tokenizer)
-[![Total Downloads](https://img.shields.io/packagist/dt/harlew-dev/laravel-ai-tokenizer.svg?style=flat-square)](https://packagist.org/packages/harlew-dev/laravel-ai-tokenizer)
+[![Latest Version on Packagist](https://img.shields.io/packagist/v/harrisonclewis/laravel-ai-tokenizer.svg?style=flat-square)](https://packagist.org/packages/harrisonclewis/laravel-ai-tokenizer)
+[![Total Downloads](https://img.shields.io/packagist/dt/harrisonclewis/laravel-ai-tokenizer.svg?style=flat-square)](https://packagist.org/packages/harrisonclewis/laravel-ai-tokenizer)
 
 > This package is currently under development and testing and will be fully released soon.
 
@@ -12,7 +12,7 @@ Token counting and token-visualization helpers for Laravel AI SDK applications. 
 You can install the package via composer:
 
 ```bash
-composer require harlew-dev/laravel-ai-tokenizer
+composer require harrisonclewis/laravel-ai-tokenizer
 ```
 
 You can publish the config file with:
@@ -26,8 +26,8 @@ php artisan vendor:publish --tag="tokenizer-config"
 Implement `HasTokenization` and add the `Tokenizable` trait directly on your agent class.
 
 ```php
-use HarlewDev\Tokenizer\Concerns\Tokenizable;
-use HarlewDev\Tokenizer\Contracts\HasTokenization;
+use Harlew\Ai\Tokenizer\Concerns\Tokenizable;
+use Harlew\Ai\Tokenizer\Contracts\HasTokenization;
 use Laravel\Ai\Agent;
 
 class SalesCoach extends Agent implements HasTokenization
@@ -58,7 +58,7 @@ The estimate covers system instructions, conversation history, tools, structured
 You can also use the facade directly for an agent:
 
 ```php
-use HarlewDev\Tokenizer\Facades\Tokenizer;
+use Harlew\Ai\Tokenizer\Facades\Tokenizer;
 
 // Fluent API ‚Äî supports all options
 $tokens = Tokenizer::forAgent($agent)->estimate(
@@ -75,7 +75,7 @@ $tokens = Tokenizer::agent($agent, 'Analyze the attached sales report');
 ### Count text tokens
 
 ```php
-use HarlewDev\Tokenizer\Facades\Tokenizer;
+use Harlew\Ai\Tokenizer\Facades\Tokenizer;
 
 $tokens = Tokenizer::count('Hello world', model: 'gpt-4o');
 ```
@@ -94,7 +94,7 @@ $tokenized->visualization; // array of token strings with whitespace markers (‚ê
 ### Estimate attachment tokens
 
 ```php
-use HarlewDev\Tokenizer\Facades\Tokenizer;
+use Harlew\Ai\Tokenizer\Facades\Tokenizer;
 use Laravel\Ai\Files;
 
 $tokens = Tokenizer::attachments([
@@ -176,7 +176,7 @@ Please see [CHANGELOG](CHANGELOG.md) for more information on what has changed re
 
 ## Contributing
 
-Please see [CONTRIBUTING](https://github.com/harlew-dev/.github/blob/main/CONTRIBUTING.md) for details.
+Please see [CONTRIBUTING](https://github.com/harrisonclewis/.github/blob/main/CONTRIBUTING.md) for details.
 
 ## Security Vulnerabilities
 
@@ -184,7 +184,7 @@ Please review [our security policy](../../security/policy) on how to report secu
 
 ## Credits
 
-- [Harlew](https://github.com/harlew-dev)
+- [Harlew](https://github.com/harrisonclewis)
 - [All Contributors](../../contributors)
 
 ## License

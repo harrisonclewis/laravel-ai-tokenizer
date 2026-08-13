@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-use HarlewDev\Tokenizer\Tokenizer;
-use HarlewDev\Tokenizer\Tests\Fixtures\SchemaAnonymousAgent;
-use HarlewDev\Tokenizer\Tests\Fixtures\TestTool;
+use Harlew\Ai\Tokenizer\Tokenizer;
+use Harlew\Ai\Tokenizer\Tests\Fixtures\SchemaAnonymousAgent;
+use Harlew\Ai\Tokenizer\Tests\Fixtures\TestTool;
 use Laravel\Ai\AnonymousAgent;
 use Laravel\Ai\Files\Document;
 use Laravel\Ai\Providers\Tools\WebSearch;

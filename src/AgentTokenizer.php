@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer;
+namespace Harlew\Ai\Tokenizer;
 
-use HarlewDev\Tokenizer\Serializers\StructuredOutputSchemaSerializer;
-use HarlewDev\Tokenizer\Serializers\ToolsSerializer;
+use Harlew\Ai\Tokenizer\Serializers\StructuredOutputSchemaSerializer;
+use Harlew\Ai\Tokenizer\Serializers\ToolsSerializer;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Ai;
 use Laravel\Ai\Attributes\Model as ModelAttribute;

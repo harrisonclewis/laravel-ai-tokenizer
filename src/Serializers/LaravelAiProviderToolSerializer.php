@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\Serializers;
+namespace Harlew\Ai\Tokenizer\Serializers;
 
 use Laravel\Ai\Gateway\Prism\Concerns\AddsToolsToPrismRequests;
 use Laravel\Ai\Providers\Provider;

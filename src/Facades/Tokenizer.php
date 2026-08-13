@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\Facades;
+namespace Harlew\Ai\Tokenizer\Facades;
 
-use HarlewDev\Tokenizer\AgentTokenizer;
-use HarlewDev\Tokenizer\ValueObjects\Tokenized;
+use Harlew\Ai\Tokenizer\AgentTokenizer;
+use Harlew\Ai\Tokenizer\ValueObjects\Tokenized;
 use Illuminate\Support\Facades\Facade;
 use Laravel\Ai\Contracts\Agent;
 
@@ -18,7 +18,7 @@ use Laravel\Ai\Contracts\Agent;
  * @method static int attachments(array $attachments, string|null $model = null, string|null $provider = null) Estimate tokens for a set of attachments.
  * @method static array<string, array<string, string>> models() Get supported models.
  *
- * @see \HarlewDev\Tokenizer\Tokenizer
+ * @see \Harlew\Ai\Tokenizer\Tokenizer
  */
 class Tokenizer extends Facade
 {
@@ -29,6 +29,6 @@ class Tokenizer extends Facade
      */
     protected static function getFacadeAccessor(): string
     {
-        return \HarlewDev\Tokenizer\Tokenizer::class;
+        return \Harlew\Ai\Tokenizer\Tokenizer::class;
     }
 }

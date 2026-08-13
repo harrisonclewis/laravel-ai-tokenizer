@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer;
+namespace Harlew\Ai\Tokenizer;
 
 use Illuminate\Support\ServiceProvider;
 

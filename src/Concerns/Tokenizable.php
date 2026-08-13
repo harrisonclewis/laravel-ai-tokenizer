@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\Concerns;
+namespace Harlew\Ai\Tokenizer\Concerns;
 
-use HarlewDev\Tokenizer\AgentTokenizer;
+use Harlew\Ai\Tokenizer\AgentTokenizer;
 
 trait Tokenizable
 {

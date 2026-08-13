@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\Support\Encodings;
+namespace Harlew\Ai\Tokenizer\Support\Encodings;
 
 interface EncodingInterface
 {

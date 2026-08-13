@@ -2,14 +2,14 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer;
+namespace Harlew\Ai\Tokenizer;
 
-use HarlewDev\Tokenizer\Serializers\AttachmentSerializer;
-use HarlewDev\Tokenizer\Support\Encodings\Cl100kEncoding;
-use HarlewDev\Tokenizer\Support\Encodings\EncodingInterface;
-use HarlewDev\Tokenizer\Support\Encodings\O200kEncoding;
-use HarlewDev\Tokenizer\Support\Visualizer;
-use HarlewDev\Tokenizer\ValueObjects\Tokenized;
+use Harlew\Ai\Tokenizer\Serializers\AttachmentSerializer;
+use Harlew\Ai\Tokenizer\Support\Encodings\Cl100kEncoding;
+use Harlew\Ai\Tokenizer\Support\Encodings\EncodingInterface;
+use Harlew\Ai\Tokenizer\Support\Encodings\O200kEncoding;
+use Harlew\Ai\Tokenizer\Support\Visualizer;
+use Harlew\Ai\Tokenizer\ValueObjects\Tokenized;
 use Laravel\Ai\Contracts\Agent;
 
 class Tokenizer

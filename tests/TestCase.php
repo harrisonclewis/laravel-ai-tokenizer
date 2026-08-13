@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\Tests;
+namespace Harlew\Ai\Tokenizer\Tests;
 
-use HarlewDev\Tokenizer\TokenizerServiceProvider;
+use Harlew\Ai\Tokenizer\TokenizerServiceProvider;
 use Laravel\Ai\AiServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
 use Prism\Prism\PrismServiceProvider;

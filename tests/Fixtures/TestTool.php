@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\Tests\Fixtures;
+namespace Harlew\Ai\Tokenizer\Tests\Fixtures;
 
 use Illuminate\Contracts\JsonSchema\JsonSchema;
 use Laravel\Ai\Contracts\Tool;

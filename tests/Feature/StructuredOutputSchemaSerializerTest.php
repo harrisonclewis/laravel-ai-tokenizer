@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use HarlewDev\Tokenizer\Serializers\StructuredOutputSchemaSerializer;
-use HarlewDev\Tokenizer\Tests\Fixtures\SchemaAnonymousAgent;
+use Harlew\Ai\Tokenizer\Serializers\StructuredOutputSchemaSerializer;
+use Harlew\Ai\Tokenizer\Tests\Fixtures\SchemaAnonymousAgent;
 use Laravel\Ai\Ai;
 
 it('serializes structured schema using openrouter request envelope', function (): void {

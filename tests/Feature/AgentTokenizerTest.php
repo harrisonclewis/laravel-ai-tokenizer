@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use HarlewDev\Tokenizer\Tokenizer;
-use HarlewDev\Tokenizer\Tests\Fixtures\SchemaAnonymousAgent;
-use HarlewDev\Tokenizer\Tests\Fixtures\TestTool;
-use HarlewDev\Tokenizer\Tests\Fixtures\TokenizableAnonymousAgent;
+use Harlew\Ai\Tokenizer\Tokenizer;
+use Harlew\Ai\Tokenizer\Tests\Fixtures\SchemaAnonymousAgent;
+use Harlew\Ai\Tokenizer\Tests\Fixtures\TestTool;
+use Harlew\Ai\Tokenizer\Tests\Fixtures\TokenizableAnonymousAgent;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Ai;
 use Laravel\Ai\AnonymousAgent;

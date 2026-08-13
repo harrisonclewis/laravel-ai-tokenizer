@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\Support;
+namespace Harlew\Ai\Tokenizer\Support;
 
 /**
  * Formats tokens for visual display.

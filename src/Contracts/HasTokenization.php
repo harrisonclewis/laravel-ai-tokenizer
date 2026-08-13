@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\Contracts;
+namespace Harlew\Ai\Tokenizer\Contracts;
 
 /**
  * Contract for agents that support tokenization.

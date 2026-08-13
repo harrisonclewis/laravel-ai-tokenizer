@@ -2,7 +2,7 @@
 
 Contributions are welcome and will be fully credited.
 
-We accept contributions via Pull Requests on [GitHub](https://github.com/harlew-dev/laravel-ai-tokenizer).
+We accept contributions via Pull Requests on [GitHub](https://github.com/harrisonclewis/laravel-ai-tokenizer).
 
 ## Pull Requests
 

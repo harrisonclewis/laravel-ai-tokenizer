@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace HarlewDev\Tokenizer\ValueObjects;
+namespace Harlew\Ai\Tokenizer\ValueObjects;
 
 use JsonSerializable;
 

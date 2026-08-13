@@ -2,8 +2,8 @@
 
 declare(strict_types=1);
 
-use HarlewDev\Tokenizer\Serializers\AttachmentSerializer;
-use HarlewDev\Tokenizer\Tokenizer;
+use Harlew\Ai\Tokenizer\Serializers\AttachmentSerializer;
+use Harlew\Ai\Tokenizer\Tokenizer;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Files\Document;

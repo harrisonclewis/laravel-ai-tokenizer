@@ -10,14 +10,16 @@ use Illuminate\Support\Collection;
 use Laravel\Ai\Ai;
 use Laravel\Ai\Attributes\Model as ModelAttribute;
 use Laravel\Ai\Attributes\Provider as ProviderAttribute;
+use Laravel\Ai\Attributes\UseCheapestModel;
+use Laravel\Ai\Attributes\UseSmartestModel;
 use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\Conversational;
 use Laravel\Ai\Contracts\HasTools;
-use Laravel\Ai\Enums\Lab;
+use Laravel\Ai\Messages\ToolResultMessage;
 use Laravel\Ai\Messages\UserMessage;
 use Laravel\Ai\Providers\Provider;
 use ReflectionClass;
-use Throwable;
+use RuntimeException;
 
 class AgentTokenizer
 {
@@ -43,11 +45,17 @@ class AgentTokenizer
      */
     public function estimate(string $prompt, array $attachments = [], ?string $provider = null, ?string $model = null): int
     {
-        $provider = $provider ?? $this->getAgentProvider();
-        $model = $model ?? $this->getAgentModel($provider);
-        $resolvedProvider = $this->resolveProvider($provider);
+        $providerModel = null;
+        $providerList = false;
 
-        $instructions = trim((string) $this->agent->instructions());
+        if ($provider === null) {
+            [$provider, $providerModel, $providerList] = $this->getAgentProviderAndModel();
+        }
+
+        $resolvedProvider = $this->resolveProvider($provider);
+        $model = $model ?? $providerModel ?? $this->getAgentModel($resolvedProvider, $providerList);
+
+        $instructions = (string) $this->agent->instructions();
         $messages = new Collection;
 
         if ($this->agent instanceof Conversational) {
@@ -64,7 +72,7 @@ class AgentTokenizer
 
         $tokens = 0;
 
-        if ($instructions !== '') {
+        if (trim($instructions) !== '') {
             $tokens += $this->tokenizer->count($instructions, $model, $provider);
         }
 
@@ -78,7 +86,9 @@ class AgentTokenizer
             $tokens += $this->tokenizer->countPayload($schema, $model, $provider);
         }
 
-        $messageCount = $messages->count() + ($instructions !== '' ? 1 : 0);
+        $messageCount = $messages->sum(static fn (mixed $message): int => $message instanceof ToolResultMessage
+            ? $message->toolResults->count()
+            : 1) + (trim($instructions) !== '' ? 1 : 0);
 
         return $tokens + $this->calculateOverhead($provider, $messageCount);
     }
@@ -104,7 +114,7 @@ class AgentTokenizer
     /**
      * Get the provider used by the agent.
      */
-    protected function getAgentProvider(): ?string
+    protected function getAgentProviderAndModel(): array
     {
         $value = null;
 
@@ -123,33 +133,36 @@ class AgentTokenizer
             }
         }
 
-        // Normalize array to string (first provider)
-        if (is_array($value)) {
-            $value = $value[0] ?? null;
+        $value ??= config('ai.default');
+
+        if ($value === null) {
+            throw new RuntimeException('No Laravel AI provider is configured.');
         }
 
-        // Handle Lab enum or other stringable values
-        if ($value instanceof Lab) {
-            $value = $value->value;
+        $providers = Provider::formatProviderAndModelList($value);
+        $name = array_key_first($providers);
+
+        if ($name === null) {
+            throw new RuntimeException('No Laravel AI provider is configured.');
         }
 
-        return $value !== null ? (string) $value : config('ai.default');
+        return [$name, $providers[$name], is_array($value)];
     }
 
     /**
      * Get the model used by the agent.
      */
-    protected function getAgentModel(?string $provider): string
+    protected function getAgentModel(Provider $provider, bool $providerList = false): string
     {
         $value = null;
 
         // Check if agent has a model() method
-        if (method_exists($this->agent, 'model')) {
+        if (! $providerList && method_exists($this->agent, 'model')) {
             $value = $this->agent->model();
         }
 
         // Check for Model attribute
-        if ($value === null) {
+        if (! $providerList && $value === null) {
             $reflection = new ReflectionClass($this->agent);
             $attributes = $reflection->getAttributes(ModelAttribute::class);
 
@@ -162,13 +175,17 @@ class AgentTokenizer
             return (string) $value;
         }
 
-        $providerDefaultModel = $this->getProviderDefaultModel($provider);
+        $reflection = new ReflectionClass($this->agent);
 
-        if ($providerDefaultModel !== null) {
-            return $providerDefaultModel;
+        if ($reflection->getAttributes(UseSmartestModel::class) !== []) {
+            return $provider->smartestTextModel();
         }
 
-        return (string) config('ai.tokenizer.default_model', 'gpt-4');
+        if ($reflection->getAttributes(UseCheapestModel::class) !== []) {
+            return $provider->cheapestTextModel();
+        }
+
+        return $provider->defaultTextModel();
     }
 
     /**
@@ -195,6 +212,17 @@ class AgentTokenizer
         $tokens = 0;
 
         foreach ($messages as $message) {
+            if ($message instanceof ToolResultMessage) {
+                foreach ($message->toolResults as $result) {
+                    $tokens += $this->tokenizer->count((string) ($result->resultId ?? $result->id), $model, $provider);
+                    $tokens += $this->tokenizer->count(method_exists($result, 'text')
+                        ? $result->text()
+                        : (is_string($result->result) ? $result->result : $this->serializeToolResult($result->result)), $model, $provider);
+                }
+
+                continue;
+            }
+
             $content = (string) (data_get($message, 'content') ?? '');
 
             if ($content !== '') {
@@ -212,54 +240,34 @@ class AgentTokenizer
             }
 
             if (isset($message->toolCalls) && is_iterable($message->toolCalls)) {
-                $tokens += $this->tokenizer->countPayload(
-                    Collection::make($message->toolCalls)->map(
-                        static fn (mixed $toolCall): mixed => method_exists($toolCall, 'toArray')
-                            ? $toolCall->toArray()
-                            : $toolCall
-                    )->values()->all(),
-                    $model,
-                    $provider
-                );
+                foreach ($message->toolCalls as $toolCall) {
+                    $tokens += $this->tokenizer->count((string) ($toolCall->resultId ?? $toolCall->id), $model, $provider);
+                    $tokens += $this->tokenizer->count((string) $toolCall->name, $model, $provider);
+                    $tokens += $this->tokenizer->count($this->serializeToolResult($toolCall->arguments), $model, $provider);
+                }
             }
 
-            if (isset($message->toolResults) && is_iterable($message->toolResults)) {
-                $tokens += $this->tokenizer->countPayload(
-                    Collection::make($message->toolResults)->map(
-                        static fn (mixed $toolResult): mixed => method_exists($toolResult, 'toArray')
-                            ? $toolResult->toArray()
-                            : $toolResult
-                    )->values()->all(),
-                    $model,
-                    $provider
-                );
-            }
         }
 
         return $tokens;
     }
 
-    protected function getProviderDefaultModel(?string $providerName): ?string
+    private function serializeToolResult(mixed $result): string
     {
-        try {
-            $providerName ??= (string) config('ai.default');
-
-            return Ai::textProviderFor($this->agent, $providerName)->defaultTextModel();
-        } catch (Throwable) {
-            return null;
-        }
+        return is_array($result)
+            ? (json_encode($result, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '')
+            : (string) $result;
     }
 
-    protected function resolveProvider(?string $providerName): ?Provider
+    protected function resolveProvider(?string $providerName): Provider
     {
-        try {
-            $providerName ??= (string) config('ai.default');
-            $provider = Ai::textProviderFor($this->agent, $providerName);
+        $providerName ??= (string) config('ai.default');
+        $provider = Ai::textProviderFor($this->agent, $providerName);
 
-            return $provider instanceof Provider ? $provider : null;
-        } catch (Throwable) {
-            return null;
+        if (! $provider instanceof Provider) {
+            throw new RuntimeException("Provider [{$providerName}] cannot be mapped to a Laravel AI text provider.");
         }
-    }
 
+        return $provider;
+    }
 }

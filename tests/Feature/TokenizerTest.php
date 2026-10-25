@@ -8,6 +8,7 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Laravel\Ai\Files\Document;
 use Laravel\Ai\Files\Image;
+use Yethee\Tiktoken\EncoderProvider;
 
 it('counts and visualizes tokens consistently', function (): void {
     $tokenizer = app(Tokenizer::class);
@@ -22,6 +23,22 @@ it('counts and visualizes tokens consistently', function (): void {
         ->and($tokenized->tokens)->toBe($count)
         ->and($visualized->visualization)->not->toBeEmpty();
 });
+
+it('selects the o200k encoding for current OpenAI models and OpenRouter aliases', function (): void {
+    $text = 'お誕生日おめでとう! 2026 🚀';
+    $expected = count((new EncoderProvider)->get('o200k_base')->encode($text));
+    $tokenizer = app(Tokenizer::class);
+
+    expect($tokenizer->count($text, 'gpt-5'))->toBe($expected)
+        ->and($tokenizer->count($text, 'gpt-4.1'))->toBe($expected)
+        ->and($tokenizer->count($text, 'openai/gpt-4o'))->toBe($expected);
+});
+
+it('rejects unknown configured encodings instead of silently using a different one', function (): void {
+    config()->set('ai.tokenizer.models.custom-model', ['encoding' => 'does_not_exist']);
+
+    app(Tokenizer::class)->count('Hello', 'custom-model');
+})->throws(InvalidArgumentException::class, 'Unsupported tokenizer encoding');
 
 it('returns configured model map', function (): void {
     $models = app(Tokenizer::class)->models();
@@ -111,7 +128,7 @@ it('attachment serializer falls back to size-based token estimate for binary fil
         ->and($payload[0]['estimated_tokens'])->toBeGreaterThan(0);
 });
 
-it('attachments counting includes size-based token estimate fallback', function (): void {
+it('counts attachment content without invented serialization metadata', function (): void {
     Storage::fake('tokenizer-tests');
     Storage::disk('tokenizer-tests')->put('blob.bin', random_bytes(1024));
 
@@ -120,14 +137,20 @@ it('attachments counting includes size-based token estimate fallback', function 
     $serializer = new AttachmentSerializer;
 
     $payload = $serializer->serialize([$attachment]);
-    $basePayload = array_map(function (array $part): array {
-        unset($part['estimated_tokens']);
-
-        return $part;
-    }, $payload);
-
-    $baseTokens = $tokenizer->countPayload($basePayload, 'gpt-4o', 'openrouter');
     $attachmentTokens = $tokenizer->attachments([$attachment], 'gpt-4o', 'openrouter');
 
-    expect($attachmentTokens)->toBeGreaterThan($baseTokens);
+    expect($attachmentTokens)->toBe($payload[0]['estimated_tokens'] + $tokenizer->count('blob.bin', 'gpt-4o'));
+});
+
+it('counts text attachment content directly', function (): void {
+    $tokenizer = app(Tokenizer::class);
+    $body = 'A short report with numbers 123 and 456.';
+
+    $actual = $tokenizer->attachments([
+        Document::fromString($body, 'text/plain')->as('report.txt'),
+    ], 'gpt-4o', 'openrouter');
+
+    expect($actual)->toBe(
+        $tokenizer->count($body, 'gpt-4o') + $tokenizer->count('report.txt', 'gpt-4o')
+    );
 });

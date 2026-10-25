@@ -10,6 +10,7 @@ use Harlew\Ai\Tokenizer\Support\Encodings\EncodingInterface;
 use Harlew\Ai\Tokenizer\Support\Encodings\O200kEncoding;
 use Harlew\Ai\Tokenizer\Support\Visualizer;
 use Harlew\Ai\Tokenizer\ValueObjects\Tokenized;
+use InvalidArgumentException;
 use Laravel\Ai\Contracts\Agent;
 
 class Tokenizer
@@ -22,7 +23,7 @@ class Tokenizer
 
     public function __construct(?AttachmentSerializer $attachmentSerializer = null)
     {
-        $this->visualizer = new Visualizer();
+        $this->visualizer = new Visualizer;
         $this->attachmentSerializer = $attachmentSerializer ?? new AttachmentSerializer;
     }
 
@@ -80,10 +81,19 @@ class Tokenizer
         }
 
         $payload = $this->attachmentSerializer->serialize($attachments);
-        $text = $this->serializePayload($payload);
-        $estimatedTokens = $this->attachmentSerializer->estimatedTokens($payload);
+        $tokens = $this->attachmentSerializer->estimatedTokens($payload);
 
-        return $this->count($text, $model, $provider) + $estimatedTokens;
+        foreach ($payload as $part) {
+            if (isset($part['content'])) {
+                $tokens += $this->count($part['content'], $model, $provider);
+            }
+
+            if (isset($part['name'])) {
+                $tokens += $this->count($part['name'], $model, $provider);
+            }
+        }
+
+        return $tokens;
     }
 
     public function countPayload(array $payload, ?string $model = null, ?string $provider = null): int
@@ -99,25 +109,38 @@ class Tokenizer
     private function getEncoding(string $model): EncodingInterface
     {
         $models = config('ai.tokenizer.models', []);
-        $encodingName = $models[$model]['encoding'] ?? null;
-
-        if ($encodingName === null) {
-            $encodingName = 'cl100k_base';
-        }
+        $encodingName = $models[$model]['encoding'] ?? $this->encodingForOpenAiModel($model)
+            ?? config('ai.tokenizer.fallback_encoding', 'cl100k_base');
 
         if (isset($this->encodings[$encodingName])) {
             return $this->encodings[$encodingName];
         }
 
         $encoding = match ($encodingName) {
-            'o200k_base' => new O200kEncoding(),
-            'cl100k_base' => new Cl100kEncoding(),
-            default => new Cl100kEncoding(),
+            'o200k_base' => new O200kEncoding,
+            'cl100k_base' => new Cl100kEncoding,
+            default => throw new InvalidArgumentException("Unsupported tokenizer encoding [{$encodingName}]."),
         };
 
         $this->encodings[$encodingName] = $encoding;
 
         return $encoding;
+    }
+
+    private function encodingForOpenAiModel(string $model): ?string
+    {
+        // OpenRouter prefixes OpenAI model names with "openai/".
+        $model = preg_replace('~^openai/~', '', $model);
+
+        if (preg_match('/^(gpt-5|gpt-4\.5|gpt-4\.1|gpt-4o|chatgpt-4o|o[134](?:-|$)|o4-mini)/', $model)) {
+            return 'o200k_base';
+        }
+
+        if (preg_match('/^(gpt-4(?:-|$)|gpt-3\.5(?:-|$))/', $model)) {
+            return 'cl100k_base';
+        }
+
+        return null;
     }
 
     private function serializePayload(array $payload): string

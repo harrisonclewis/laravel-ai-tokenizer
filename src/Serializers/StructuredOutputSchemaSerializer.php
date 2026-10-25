@@ -9,7 +9,6 @@ use Laravel\Ai\Contracts\Agent;
 use Laravel\Ai\Contracts\HasStructuredOutput;
 use Laravel\Ai\ObjectSchema;
 use Laravel\Ai\Providers\Provider;
-use Throwable;
 
 class StructuredOutputSchemaSerializer
 {
@@ -30,16 +29,10 @@ class StructuredOutputSchemaSerializer
             return null;
         }
 
-        try {
-            $schema = $agent->schema(new JsonSchemaTypeFactory);
+        $schema = $agent->schema(new JsonSchemaTypeFactory);
+        $payload = $this->normalizer->normalize($this->schemaPayloadForProvider($schema, $provider));
 
-            $payload = $this->schemaPayloadForProvider($schema, $provider);
-            $payload = $this->normalizer->normalize($payload);
-
-            return $payload === [] ? null : $payload;
-        } catch (Throwable) {
-            return null;
-        }
+        return $payload === [] ? null : $payload;
     }
 
     /**
@@ -51,9 +44,8 @@ class StructuredOutputSchemaSerializer
         $schemaObject = new ObjectSchema($schema);
 
         return match ($provider?->driver()) {
-            // Mirrors Prism's OpenRouter structured payload envelope.
+            // Mirrors Laravel AI's OpenRouter response_format envelope.
             'openrouter' => [
-                'structured_outputs' => true,
                 'response_format' => [
                     'type' => 'json_schema',
                     'json_schema' => [

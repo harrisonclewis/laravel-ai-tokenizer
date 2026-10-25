@@ -225,6 +225,16 @@ class AttachmentSerializer
             }
         }
 
+        if ($attachment instanceof HasContent) {
+            try {
+                $size = strlen($attachment->content());
+
+                return $size > 0 ? $size : null;
+            } catch (Throwable) {
+                return null;
+            }
+        }
+
         return null;
     }
 

@@ -13,7 +13,6 @@ it('serializes structured schema using openrouter request envelope', function ()
     $payload = (new StructuredOutputSchemaSerializer)->serialize($agent, $provider);
 
     expect($payload)->toBeArray()
-        ->and($payload)->toHaveKey('structured_outputs', true)
         ->and(data_get($payload, 'response_format.type'))->toBe('json_schema')
         ->and(data_get($payload, 'response_format.json_schema.name'))->toBe('schema_definition')
         ->and(data_get($payload, 'response_format.json_schema.strict'))->toBeTrue()
@@ -31,4 +30,3 @@ it('serializes default structured schema as object schema when provider is not g
         ->and($payload['properties'])->toHaveKey('summary')
         ->and($payload['properties'])->toHaveKey('confidence');
 });
-

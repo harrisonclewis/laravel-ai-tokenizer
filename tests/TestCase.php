@@ -7,14 +7,12 @@ namespace Harlew\Ai\Tokenizer\Tests;
 use Harlew\Ai\Tokenizer\TokenizerServiceProvider;
 use Laravel\Ai\AiServiceProvider;
 use Orchestra\Testbench\TestCase as Orchestra;
-use Prism\Prism\PrismServiceProvider;
 
 abstract class TestCase extends Orchestra
 {
     protected function getPackageProviders($app): array
     {
         return [
-            PrismServiceProvider::class,
             AiServiceProvider::class,
             TokenizerServiceProvider::class,
         ];
@@ -39,6 +37,5 @@ abstract class TestCase extends Orchestra
         ]);
 
         $app['config']->set('ai.tokenizer.default_model', 'gpt-4o');
-        $app['config']->set('ai.tokenizer.message_overhead.openrouter.per_request', 8);
     }
 }

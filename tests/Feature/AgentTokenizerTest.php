@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-use Harlew\Ai\Tokenizer\Tokenizer;
 use Harlew\Ai\Tokenizer\Tests\Fixtures\SchemaAnonymousAgent;
 use Harlew\Ai\Tokenizer\Tests\Fixtures\TestTool;
 use Harlew\Ai\Tokenizer\Tests\Fixtures\TokenizableAnonymousAgent;
+use Harlew\Ai\Tokenizer\Tokenizer;
 use Illuminate\Support\Collection;
 use Laravel\Ai\Ai;
 use Laravel\Ai\AnonymousAgent;
@@ -33,6 +33,21 @@ it('matches manual baseline formula for a simple agent request', function (): vo
         + (($overhead['per_message'] * 2) + $overhead['per_request']);
 
     expect($estimate)->toBe($expected);
+});
+
+it('uses the first configured provider and its model from an agent failover list', function (): void {
+    $agent = new class('', [], []) extends AnonymousAgent
+    {
+        public function provider(): array
+        {
+            return ['openai' => 'gpt-4', 'openrouter' => 'gpt-5'];
+        }
+    };
+
+    $prompt = 'お誕生日おめでとう! 2026 🚀';
+    $tokenizer = app(Tokenizer::class)->forAgent($agent);
+
+    expect($tokenizer->estimate($prompt))->toBe($tokenizer->estimate($prompt, provider: 'openai', model: 'gpt-4'));
 });
 
 it('counts conversation history, attachments, and tool-result messages', function (): void {
@@ -69,6 +84,27 @@ it('counts conversation history, attachments, and tool-result messages', functio
         ->and($withCurrentAttachments)->toBeGreaterThan($withoutCurrentAttachments);
 });
 
+it('counts each tool result as a separate provider message without SDK metadata', function (): void {
+    $model = 'gpt-4o';
+    $provider = 'openrouter';
+    $tokenizer = app(Tokenizer::class);
+    $results = new ToolResultMessage(new Collection([
+        new ToolResult('call-a', 'lookup', ['unused' => 'metadata'], 'first result'),
+        new ToolResult('call-b', 'lookup', ['unused' => 'metadata'], 'second result'),
+    ]));
+
+    $baseline = $tokenizer->forAgent(new AnonymousAgent('', [], []))->estimate('', provider: $provider, model: $model);
+    $withResults = $tokenizer->forAgent(new AnonymousAgent('', [$results], []))->estimate('', provider: $provider, model: $model);
+
+    $expectedDelta = $tokenizer->count('call-a', $model)
+        + $tokenizer->count('first result', $model)
+        + $tokenizer->count('call-b', $model)
+        + $tokenizer->count('second result', $model)
+        + 2 * config('ai.tokenizer.message_overhead.openrouter.per_message');
+
+    expect($withResults - $baseline)->toBe($expectedDelta);
+});
+
 it('increases estimate when tools are enabled', function (): void {
     $provider = 'openrouter';
     $model = 'gpt-4o';
@@ -78,7 +114,7 @@ it('increases estimate when tools are enabled', function (): void {
 
     $noTools = new AnonymousAgent($instructions, [], []);
     $withTools = new AnonymousAgent($instructions, [], [
-        new TestTool(),
+        new TestTool,
         new WebSearch(maxSearches: 2, allowedDomains: ['example.com']),
     ]);
 
@@ -123,7 +159,7 @@ it('uses laravel ai provider-tool mapping when provider supports the tool', func
     ]);
 
     $agentTokenizer = app(Tokenizer::class)->forAgent($agent);
-    $serializeTools = new \ReflectionMethod($agentTokenizer, 'serializeTools');
+    $serializeTools = new ReflectionMethod($agentTokenizer, 'serializeTools');
     $serializeTools->setAccessible(true);
 
     $serialized = $serializeTools->invoke(
@@ -133,27 +169,27 @@ it('uses laravel ai provider-tool mapping when provider supports the tool', func
     );
 
     expect($serialized)->toHaveCount(1)
-        ->and($serialized[0]['type'])->toBe('provider_tool')
-        ->and($serialized[0]['provider_type'])->toBe('web_search');
+        ->and($serialized[0]['type'])->toBe('web_search');
 });
 
-it('falls back to generic provider-tool payload when provider mapping is unavailable', function (): void {
+it('uses the OpenRouter gateway mapping for provider tools', function (): void {
+    $tool = new WebSearch(maxSearches: 1, allowedDomains: ['example.com']);
     $agent = new AnonymousAgent('You are concise.', [], [
-        new WebSearch(maxSearches: 1, allowedDomains: ['example.com']),
+        $tool,
     ]);
 
     $agentTokenizer = app(Tokenizer::class)->forAgent($agent);
-    $serializeTools = new \ReflectionMethod($agentTokenizer, 'serializeTools');
+    $serializeTools = new ReflectionMethod($agentTokenizer, 'serializeTools');
     $serializeTools->setAccessible(true);
 
+    $provider = Ai::textProviderFor($agent, 'openrouter');
     $serialized = $serializeTools->invoke(
         $agentTokenizer,
         $agent->tools(),
-        Ai::textProviderFor($agent, 'openrouter')
+        $provider
     );
 
     expect($serialized)->toHaveCount(1)
-        ->and($serialized[0]['type'])->toBe('provider_tool')
-        ->and($serialized[0]['name'])->toBe('WebSearch')
-        ->and($serialized[0])->not->toHaveKey('provider_type');
+        ->and($serialized[0]['type'])->toBe('openrouter:web_search')
+        ->and($serialized[0])->toBe(['type' => 'openrouter:web_search', ...$provider->webSearchToolOptions($tool)]);
 });

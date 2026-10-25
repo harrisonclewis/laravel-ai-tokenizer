@@ -8,16 +8,17 @@ use Illuminate\JsonSchema\JsonSchemaTypeFactory;
 use Laravel\Ai\Contracts\Tool;
 use Laravel\Ai\Providers\Provider;
 use Laravel\Ai\Providers\Tools\ProviderTool;
-use Throwable;
 
 class ToolsSerializer
 {
     public function __construct(
         private ?ProviderToolSerializer $providerToolSerializer = null,
         private ?PayloadNormalizer $normalizer = null,
+        private ?LaravelAiProviderToolSerializer $laravelAiSerializer = null,
     ) {
         $this->providerToolSerializer ??= new ProviderToolSerializer;
         $this->normalizer ??= new PayloadNormalizer;
+        $this->laravelAiSerializer ??= new LaravelAiProviderToolSerializer;
     }
 
     /**
@@ -28,6 +29,12 @@ class ToolsSerializer
      */
     public function serialize(iterable $tools, ?Provider $provider): array
     {
+        $tools = is_array($tools) ? $tools : iterator_to_array($tools, false);
+
+        if ($provider !== null) {
+            return $this->laravelAiSerializer->serialize($provider, $tools);
+        }
+
         $serialized = [];
 
         foreach ($tools as $tool) {
@@ -41,11 +48,7 @@ class ToolsSerializer
                 continue;
             }
 
-            try {
-                $schema = $tool->schema(new JsonSchemaTypeFactory);
-            } catch (Throwable) {
-                $schema = [];
-            }
+            $schema = $tool->schema(new JsonSchemaTypeFactory);
 
             $schema = $this->normalizer->normalize($schema);
 

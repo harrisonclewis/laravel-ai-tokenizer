@@ -13,7 +13,11 @@ return [
     | to any of the supported models defined below.
     |
     */
-    'default_model' => env('TOKENIZER_MODEL', 'gpt-4'),
+    'default_model' => env('TOKENIZER_MODEL', 'gpt-4o'),
+
+    // Unknown model names use this encoding as a rough text estimate.
+    // Only OpenAI model families have a known tiktoken encoding.
+    'fallback_encoding' => 'cl100k_base',
 
     /*
     |--------------------------------------------------------------------------
@@ -31,9 +35,11 @@ return [
         'gpt-4' => ['encoding' => 'cl100k_base'],
         'gpt-4o' => ['encoding' => 'o200k_base'],
         'gpt-4o-mini' => ['encoding' => 'o200k_base'],
+        'gpt-4.1' => ['encoding' => 'o200k_base'],
+        'gpt-5' => ['encoding' => 'o200k_base'],
+        'o3' => ['encoding' => 'o200k_base'],
+        'o4-mini' => ['encoding' => 'o200k_base'],
         'gpt-3.5-turbo' => ['encoding' => 'cl100k_base'],
-        'claude-3-opus' => ['encoding' => 'cl100k_base'],
-        'claude-3-sonnet' => ['encoding' => 'cl100k_base'],
     ],
 
     /*
@@ -101,7 +107,7 @@ return [
 
         'openrouter' => [
             'per_message' => 4,
-            'per_request' => 8,
+            'per_request' => 3,
             'per_name' => 1,
         ],
     ],

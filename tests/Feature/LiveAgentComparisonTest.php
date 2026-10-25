@@ -2,152 +2,105 @@
 
 declare(strict_types=1);
 
-use Harlew\Ai\Tokenizer\Tokenizer;
 use Harlew\Ai\Tokenizer\Tests\Fixtures\SchemaAnonymousAgent;
 use Harlew\Ai\Tokenizer\Tests\Fixtures\TestTool;
+use Harlew\Ai\Tokenizer\Tests\Support\LiveCalibration;
+use Harlew\Ai\Tokenizer\Tokenizer;
 use Laravel\Ai\AnonymousAgent;
 use Laravel\Ai\Files\Document;
-use Laravel\Ai\Providers\Tools\WebSearch;
+use Laravel\Ai\Messages\AssistantMessage;
+use Laravel\Ai\Messages\UserMessage;
 
-function shouldRunLiveTokenizerTests(): bool
+function openRouterCalibrationSkipReason(): ?string
 {
-    return filter_var((string) env('TOKENIZER_RUN_LIVE_TESTS', 'false'), FILTER_VALIDATE_BOOLEAN);
-}
-
-function liveProviderCredentialEnv(string $provider): ?string
-{
-    return match ($provider) {
-        'openrouter' => 'OPENROUTER_API_KEY',
-        'openai' => 'OPENAI_API_KEY',
-        'anthropic' => 'ANTHROPIC_API_KEY',
-        default => null,
-    };
-}
-
-function liveCalibrationPromptTokens(object $response): int
-{
-    $firstStepPromptTokens = data_get($response, 'steps.0.usage.promptTokens');
-    $firstStepCacheReadInputTokens = data_get($response, 'steps.0.usage.cacheReadInputTokens');
-
-    if ($firstStepPromptTokens !== null) {
-        return (int) $firstStepPromptTokens + (int) ($firstStepCacheReadInputTokens ?? 0);
+    if (! filter_var((string) env('TOKENIZER_RUN_LIVE_TESTS', 'false'), FILTER_VALIDATE_BOOLEAN)) {
+        return 'Use composer test:live to run real OpenRouter requests.';
     }
 
-    $promptTokens = (int) data_get($response, 'usage.promptTokens', 0);
-    $cacheReadInputTokens = (int) data_get($response, 'usage.cacheReadInputTokens', 0);
+    if ((string) env('OPENROUTER_API_KEY', '') === '') {
+        return 'OpenRouter calibration requires OPENROUTER_API_KEY.';
+    }
 
-    // Fallback to aggregate usage when step usage is unavailable.
-    return $promptTokens + $cacheReadInputTokens;
+    return null;
 }
 
-function liveSupportsRichAttachmentPayload(Throwable $e): bool
-{
-    $message = strtolower($e->getMessage());
+function compareOpenRouterRequest(
+    string $scenario,
+    AnonymousAgent $agent,
+    string $prompt,
+    array $attachments = [],
+    int $maxDelta = 8,
+): void {
+    $model = (string) env('TOKENIZER_LIVE_MODEL', 'openai/gpt-4o-mini');
+    $estimate = app(Tokenizer::class)->forAgent($agent)->estimate($prompt, $attachments, 'openrouter', $model);
+    $response = $agent->prompt($prompt, attachments: $attachments, provider: 'openrouter', model: $model);
+    $visibleOutputTokens = app(Tokenizer::class)->count($response->text, $model, 'openrouter');
+    $comparison = LiveCalibration::compare($response, $scenario, 'openrouter', $model, $estimate, $visibleOutputTokens);
 
-    return ! (
-        str_contains($message, 'invalid file type')
-        || str_contains($message, 'does not support')
-        || (str_contains($message, 'attachment') && str_contains($message, 'support'))
-        || (str_contains($message, 'file') && str_contains($message, 'support'))
+    LiveCalibration::record($comparison);
+
+    expect($comparison['absolute_delta_tokens'])->toBeLessThanOrEqual(
+        $maxDelta,
+        sprintf('%s estimate differs from provider usage by %d tokens.', $scenario, $comparison['absolute_delta_tokens']),
     );
 }
 
-/**
- * Build a provider-compatible tool set for rich live calibration.
- */
-function liveRichToolsForProvider(string $provider): array
-{
-    $tools = [
-        new TestTool(),
-    ];
-
-    // Provider tools are not universally supported. Keep the payload rich, but compatible.
-    if (in_array($provider, ['openai', 'anthropic'], true)) {
-        $tools[] = new WebSearch(maxSearches: 1, allowedDomains: ['example.com']);
+it('compares a simple request with OpenRouter input usage', function (): void {
+    if (($reason = openRouterCalibrationSkipReason()) !== null) {
+        $this->markTestSkipped($reason);
     }
 
-    return $tools;
-}
-
-it('stays within configured delta for live prompt token counts (simple payload)', function (): void {
-    if (! shouldRunLiveTokenizerTests()) {
-        $this->markTestSkipped('Live tokenizer tests are disabled. Set TOKENIZER_RUN_LIVE_TESTS=true to enable.');
-    }
-
-    $provider = (string) env('TOKENIZER_LIVE_PROVIDER', 'openrouter');
-    $credentialEnv = liveProviderCredentialEnv($provider);
-
-    if ($credentialEnv === null || (string) env($credentialEnv, '') === '') {
-        $this->markTestSkipped("Missing credentials for provider [{$provider}]. Set {$credentialEnv}.");
-    }
-
-    $model = env('TOKENIZER_LIVE_MODEL') ?: null;
-    $prompt = 'Respond with exactly: ack';
-    $agent = new AnonymousAgent('You are concise.', [], []);
-
-    $tokenizer = app(Tokenizer::class);
-
-    $estimate = $tokenizer->forAgent($agent)->estimate($prompt, provider: $provider, model: $model);
-    $response = $agent->prompt($prompt, provider: $provider, model: $model);
-    $actual = liveCalibrationPromptTokens($response);
-
-    $maxDelta = (int) env('TOKENIZER_LIVE_MAX_DELTA_SIMPLE', 8);
-
-    expect(abs($estimate - $actual))->toBeLessThanOrEqual($maxDelta);
+    compareOpenRouterRequest(
+        'simple',
+        new AnonymousAgent('You are concise.', [], []),
+        'Respond with exactly: ack',
+        maxDelta: (int) env('TOKENIZER_LIVE_MAX_DELTA_SIMPLE', 8),
+    );
 })->group('live');
 
-it('stays within configured delta for live prompt token counts (rich payload)', function (): void {
-    if (! shouldRunLiveTokenizerTests()) {
-        $this->markTestSkipped('Live tokenizer tests are disabled. Set TOKENIZER_RUN_LIVE_TESTS=true to enable.');
+it('compares conversation history with OpenRouter input usage', function (): void {
+    if (($reason = openRouterCalibrationSkipReason()) !== null) {
+        $this->markTestSkipped($reason);
     }
 
-    $provider = (string) env('TOKENIZER_LIVE_PROVIDER', 'openrouter');
-    $credentialEnv = liveProviderCredentialEnv($provider);
-
-    if ($credentialEnv === null || (string) env($credentialEnv, '') === '') {
-        $this->markTestSkipped("Missing credentials for provider [{$provider}]. Set {$credentialEnv}.");
-    }
-
-    $model = env('TOKENIZER_LIVE_MODEL') ?: null;
-    $attachmentContext = 'Q4 revenue: 1.2M. Q4 margin: 22%.';
-    $prompt = 'Summarize the report context and return summary plus numeric confidence.';
-    $attachments = [
-        Document::fromString($attachmentContext, 'text/plain')->as('report.txt'),
-    ];
-
-    $agent = new SchemaAnonymousAgent(
-        'You are a precise analyst.',
-        [],
-        liveRichToolsForProvider($provider)
+    compareOpenRouterRequest(
+        'history',
+        new AnonymousAgent('You are concise.', [
+            new UserMessage('Earlier I asked about revenue.'),
+            new AssistantMessage('The earlier revenue was 1.2M.'),
+        ], []),
+        'What was the earlier revenue? Answer briefly.',
+        maxDelta: (int) env('TOKENIZER_LIVE_MAX_DELTA_HISTORY', 12),
     );
+})->group('live');
 
-    $tokenizer = app(Tokenizer::class);
-    try {
-        $estimate = $tokenizer->forAgent($agent)->estimate($prompt, $attachments, $provider, $model);
-        $response = $agent->prompt($prompt, attachments: $attachments, provider: $provider, model: $model);
-    } catch (Throwable $e) {
-        if (liveSupportsRichAttachmentPayload($e)) {
-            $this->markTestSkipped(
-                "Provider/model does not support this rich live calibration payload: {$e->getMessage()}"
-            );
-        }
-
-        // Fall back to a provider-safe rich payload when attachment media types are rejected.
-        $prompt = $prompt."\n\nReport context: {$attachmentContext}";
-        $attachments = [];
-
-        try {
-            $estimate = $tokenizer->forAgent($agent)->estimate($prompt, $attachments, $provider, $model);
-            $response = $agent->prompt($prompt, attachments: $attachments, provider: $provider, model: $model);
-        } catch (Throwable $fallback) {
-            $this->markTestSkipped(
-                "Provider/model does not support this rich live calibration payload: {$fallback->getMessage()}"
-            );
-        }
+it('compares tools and structured output with OpenRouter input usage', function (): void {
+    if (($reason = openRouterCalibrationSkipReason()) !== null) {
+        $this->markTestSkipped($reason);
     }
 
-    $actual = liveCalibrationPromptTokens($response);
-    $maxDelta = (int) env('TOKENIZER_LIVE_MAX_DELTA_RICH', 30);
+    compareOpenRouterRequest(
+        'tools-and-schema',
+        new SchemaAnonymousAgent('Return a short JSON response.', [], [new TestTool]),
+        'Return a summary of "ok" and confidence 1. Do not call tools.',
+        maxDelta: (int) env('TOKENIZER_LIVE_MAX_DELTA_RICH', 30),
+    );
+})->group('live');
 
-    expect(abs($estimate - $actual))->toBeLessThanOrEqual($maxDelta);
+it('optionally compares a text document attachment with OpenRouter input usage', function (): void {
+    if (($reason = openRouterCalibrationSkipReason()) !== null) {
+        $this->markTestSkipped($reason);
+    }
+
+    if (! filter_var((string) env('TOKENIZER_LIVE_INCLUDE_ATTACHMENTS', 'false'), FILTER_VALIDATE_BOOLEAN)) {
+        $this->markTestSkipped('Set TOKENIZER_LIVE_INCLUDE_ATTACHMENTS=true to test file processing.');
+    }
+
+    compareOpenRouterRequest(
+        'text-attachment',
+        new AnonymousAgent('Summarize the attached report in one sentence.', [], []),
+        'What does the report say?',
+        [Document::fromString('Q4 revenue: 1.2M. Q4 margin: 22%.', 'text/plain')->as('report.txt')],
+        maxDelta: (int) env('TOKENIZER_LIVE_MAX_DELTA_ATTACHMENT', 30),
+    );
 })->group('live');

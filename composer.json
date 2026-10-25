@@ -41,8 +41,8 @@
         }
     },
     "scripts": {
-        "test": "vendor/bin/pest",
-        "test:live": "vendor/bin/pest --group=live"
+        "test": "vendor/bin/pest --exclude-group=live",
+        "test:live": "@php scripts/live-calibration.php"
     },
     "minimum-stability": "stable",
     "prefer-stable": true,
